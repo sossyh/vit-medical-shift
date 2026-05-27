@@ -1,11 +1,11 @@
 """
 download_data.py
 ----------------
-Downloads NIH ChestX-ray14 dataset from Kaggle directly to Google Drive.
+Downloads NIH ChestX-ray14 dataset from Kaggle to Google Drive.
 Run once from Colab — never needs to run again.
 
 Usage in Colab:
-    from src.download_data import download_nih
+    from src.download_data import download_nih, verify_data
     download_nih(drive_root='/content/drive/MyDrive/data/nih')
 """
 
@@ -13,108 +13,110 @@ import os
 import subprocess
 
 
-def setup_kaggle(kaggle_json_path: str = 'kaggle.json'):
-    """
-    Set up Kaggle credentials from an uploaded kaggle.json file.
-    Call files.upload() in Colab first, then pass the path here.
-    """
-    os.makedirs(os.path.expanduser('~/.kaggle'), exist_ok=True)
-    dest = os.path.expanduser('~/.kaggle/kaggle.json')
-    subprocess.run(['cp', kaggle_json_path, dest])
-    subprocess.run(['chmod', '600', dest])
-    print('Kaggle credentials set up.')
-
-
 def download_nih(drive_root: str = '/content/drive/MyDrive/data/nih',
-                 n_image_zips: int = 2):
+                 extract_dir: str = '/content/extracted'):
     """
-    Download NIH ChestX-ray14 CSVs and image zips to Google Drive.
+    Download and extract full NIH ChestX-ray14 dataset to Google Drive.
+
+    Steps:
+        1. Download full data.zip from Kaggle (~42GB) to /content
+        2. Extract zip to /content/extracted
+        3. Move all images and CSVs to Google Drive permanently
 
     Args:
-        drive_root:   path to your NIH data folder in Google Drive
-        n_image_zips: how many image zips to download (1-12)
-                      each zip is ~3.5GB with ~9k images
-                      2 zips = ~7GB, ~18k images — enough to start
-                      4 zips = ~14GB, ~36k images — recommended for thesis
+        drive_root:   destination folder in Google Drive
+        extract_dir:  temp folder for extraction (in Colab, not Drive)
     """
     os.makedirs(drive_root, exist_ok=True)
     img_dir = os.path.join(drive_root, 'images')
     os.makedirs(img_dir, exist_ok=True)
 
-    base_cmd = [
-        'kaggle', 'datasets', 'download',
-        '-d', 'nih-chest-xrays/data',
-        '--path', drive_root
-    ]
+    # Step 1: Download full dataset
+    zip_path = '/content/data.zip'
+    if os.path.exists(zip_path):
+        print('data.zip already downloaded, skipping.')
+    else:
+        print('Downloading full NIH dataset (~42GB)...')
+        print('Takes ~5 minutes on Colab Pro.')
+        result = subprocess.run([
+            'kaggle', 'datasets', 'download',
+            '-d', 'nih-chest-xrays/data',
+            '--path', '/content',
+            '--force'
+        ], capture_output=True, text=True)
+        if result.returncode != 0:
+            print('Download failed! Error:', result.stderr[:300])
+            return
+        print('Download complete!')
 
-    # ── Download CSVs ──────────────────────────────────────────────────────
-    print('Downloading CSVs...')
+    # Step 2: Extract zip
+    if os.path.exists(extract_dir):
+        print('Already extracted, skipping.')
+    else:
+        print('Extracting data.zip (10-15 mins)...')
+        result = subprocess.run([
+            'unzip', '-q', zip_path, '-d', extract_dir
+        ], capture_output=True, text=True)
+        if result.returncode != 0:
+            print('Extraction failed! Error:', result.stderr[:300])
+            return
+        print('Extraction complete!')
+
+    # Step 3: Move CSVs to Drive
+    print('\nMoving CSVs to Drive...')
     for f in ['Data_Entry_2017.csv', 'BBox_List_2017.csv',
               'train_val_list.txt', 'test_list.txt']:
-        csv_path = os.path.join(drive_root, f)
-        if os.path.exists(csv_path):
-            print(f'  {f} already exists, skipping.')
+        src = os.path.join(extract_dir, f)
+        dst = os.path.join(drive_root, f)
+        if os.path.exists(dst):
+            print(f'  {f} already in Drive, skipping.')
             continue
-        print(f'  Downloading {f}...')
-        subprocess.run(base_cmd + ['-f', f])
-        # unzip if needed
-        zip_path = csv_path + '.zip'
-        if os.path.exists(zip_path):
-            subprocess.run(['unzip', '-q', zip_path, '-d', drive_root])
-            os.remove(zip_path)
+        if os.path.exists(src):
+            subprocess.run(['cp', src, dst])
+            print(f'  {f} copied.')
 
-    # ── Download image zips ────────────────────────────────────────────────
-    for i in range(1, n_image_zips + 1):
-        zip_name = f'images_{i:03d}.tar.gz'
-        zip_path = os.path.join(drive_root, zip_name)
+    # Step 4: Move images to Drive
+    existing = len(os.listdir(img_dir))
+    if existing > 100000:
+        print(f'\nImages already in Drive ({existing:,}), skipping.')
+    else:
+        print('\nMoving images to Drive (15-20 mins)...')
+        for i in range(1, 13):
+            folder = f'images_{i:03d}'
+            src    = os.path.join(extract_dir, folder, 'images')
+            if not os.path.exists(src):
+                print(f'  {folder} not found, skipping.')
+                continue
+            print(f'  Moving {folder}...')
+            subprocess.run(f'cp -r {src}/* {img_dir}/', shell=True)
+            n = len(os.listdir(img_dir))
+            print(f'  Images so far: {n:,}')
 
-        if os.path.exists(zip_path):
-            print(f'{zip_name} already downloaded, extracting...')
-        else:
-            print(f'Downloading {zip_name} (~3.5GB)...')
-            subprocess.run(base_cmd + ['-f', zip_name])
-
-        # Extract
-        print(f'Extracting {zip_name}...')
-        subprocess.run([
-            'tar', '-xzf', zip_path,
-            '-C', img_dir,
-            '--strip-components=1'   # removes the images/ subfolder inside the tar
-        ])
-
-        # Remove zip to save Drive space
-        if os.path.exists(zip_path):
-            os.remove(zip_path)
-            print(f'Removed {zip_name} zip to save space.')
-
-    # ── Summary ───────────────────────────────────────────────────────────
-    n_images = len(os.listdir(img_dir)) if os.path.exists(img_dir) else 0
+    n_images = len(os.listdir(img_dir))
     print(f'\nDone! {n_images:,} images in {img_dir}')
-    print('Files in drive_root:')
-    for f in sorted(os.listdir(drive_root)):
-        print(f'  {f}')
 
 
 def verify_data(drive_root: str = '/content/drive/MyDrive/data/nih'):
     """Quick check that all expected files are present."""
+    img_dir = os.path.join(drive_root, 'images')
     checks = {
         'Data_Entry_2017.csv': os.path.join(drive_root, 'Data_Entry_2017.csv'),
         'BBox_List_2017.csv' : os.path.join(drive_root, 'BBox_List_2017.csv'),
-        'images/ folder'     : os.path.join(drive_root, 'images'),
+        'train_val_list.txt' : os.path.join(drive_root, 'train_val_list.txt'),
+        'images/ folder'     : img_dir,
     }
     all_good = True
     for name, path in checks.items():
         exists = os.path.exists(path)
-        status = '✓' if exists else '✗'
-        print(f'  {status} {name}')
+        print(f'  {"checkmark" if exists else "x"} {name}')
         if not exists:
             all_good = False
-
-    if os.path.exists(os.path.join(drive_root, 'images')):
-        n = len(os.listdir(os.path.join(drive_root, 'images')))
-        print(f'  ✓ {n:,} images found')
-
+    n = len(os.listdir(img_dir)) if os.path.exists(img_dir) else 0
+    print(f'  {"ok" if n > 0 else "missing"} {n:,} images found')
+    if n == 0:
+        all_good = False
+    print()
     if all_good:
-        print('\nAll good — ready to train!')
+        print('All good - ready to train!')
     else:
-        print('\nSome files missing — run download_nih() first.')
+        print('Something missing - run download_nih() again.')
