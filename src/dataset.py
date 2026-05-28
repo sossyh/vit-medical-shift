@@ -61,7 +61,8 @@ def get_transforms(split="train", image_size=224):
 
 def get_nih_loaders(csv_path, img_dir, batch_size=32,
                     train_split=0.8, image_size=224,
-                    num_workers=2, subset=1.0):
+                    num_workers=0,   # ← change from 2 to 0
+                    subset=1.0):
     # Use subset for local CPU testing (e.g. subset=0.01 = 1% of data)
     full_dataset = NIHChestDataset(csv_path, img_dir, subset=subset)
     n = len(full_dataset)
