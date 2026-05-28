@@ -13,11 +13,18 @@ class NIHChestDataset(Dataset):
         self.transform = transform
 
         df = pd.read_csv(csv_path)
+
+        # Filter to only images that actually exist on disk
+        print('Filtering to available images...')
+        available = set(os.listdir(img_dir))
+        df = df[df['Image Index'].isin(available)].reset_index(drop=True)
+        print(f'Available: {len(df):,} / {len(pd.read_csv(csv_path)):,}')
+
         if subset < 1.0:
             df = df.sample(frac=subset, random_state=42).reset_index(drop=True)
 
-        self.image_names = df["Image Index"].values
-        self.label_matrix = self._encode_labels(df["Finding Labels"].values)
+        self.image_names = df['Image Index'].values
+        self.label_matrix = self._encode_labels(df['Finding Labels'].values)
 
     def _encode_labels(self, raw_labels):
         matrix = np.zeros((len(raw_labels), len(NIH_LABELS)), dtype=np.float32)
