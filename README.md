@@ -1,152 +1,138 @@
-
 # ViT Reliability and Explainability Under Medical Distribution Shift
 
-Thesis research project investigating how Vision Transformers behave 
-under hospital-level distribution shift in chest X-ray classification.
+**Author:** Sosna Worku | George Washington University  
+**Thesis Chapter** | 2026
+
+---
+
+## Overview
+
+This project investigates how Vision Transformers (ViT) behave under hospital-level distribution shift in chest X-ray classification, comparing reliability and explainability against a ResNet50 baseline.
+
+**Training data:** NIH ChestX-ray14 (94,875 images, 14 pathology labels)  
+**OOD test data:** CheXpert validation set (202 frontal chest X-rays, Stanford Hospital)
+
+---
+
+## Key Findings
+
+| Model | ID AUC (NIH) | OOD AUC (CheXpert) | AUC Drop | ID ECE | OOD ECE |
+|-------|-------------|-------------------|----------|--------|---------|
+| ViT-B/16 | **0.800** | **0.774** | 0.027 | 0.006 | 0.040 |
+| ResNet50 | 0.745 | 0.729 | **0.016** | 0.003 | 0.035 |
+
+**RQ1:** ViT achieves higher accuracy but degrades more under distribution shift than ResNet.  
+**RQ2:** MC-Dropout uncertainty fails to reliably detect OOD samples. ECE degrades 6-13x under shift.  
+**RQ3:** ViT attention maps are diffuse and clinically unfocused. ResNet GradCAM produces more spatially meaningful activations.
+
+---
+
+## Project Structure
+
+```
+vit-medical-shift/
+├── src/                        ← reusable Python modules
+│   ├── utils.py                ← helpers, NIH_LABELS
+│   ├── dataset.py              ← NIHChestDataset, CheXpertDataset
+│   ├── model.py                ← get_vit, get_resnet, mc_dropout_predict
+│   ├── train.py                ← training loop, checkpointing
+│   ├── evaluate.py             ← AUC, ECE, reliability diagrams
+│   ├── explainability.py       ← attention rollout, GradCAM, IoU
+│   └── download_data.py        ← Kaggle download helpers
+├── notebooks/                  ← Colab notebooks (one per experiment)
+│   ├── 00_setup_and_download.ipynb
+│   ├── 01_data_exploration.ipynb
+│   ├── 02_baseline_training.ipynb
+│   ├── 03_distribution_shift.ipynb
+│   └── 04_explainability.ipynb
+├── configs/                    ← YAML hyperparameter configs
+│   ├── vit_nih.yaml
+│   └── resnet_nih.yaml
+├── results/
+│   ├── figures/                ← all experiment figures
+│   └── metrics/                ← CSV and JSON result files
+├── requirements.txt
+└── .gitignore
+```
+
+---
 
 ## Datasets
-- Training: NIH ChestX-ray14
-- OOD Test: CheXpert
 
-## Structure
-- `notebooks/` — Colab notebooks (one per experiment week)
-- `src/` — reusable Python modules
-- `configs/` — YAML hyperparameter configs
-- `results/` — figures and metrics (checkpoints excluded)
+| Dataset | Source | Use |
+|---------|--------|-----|
+| NIH ChestX-ray14 | [Kaggle](https://www.kaggle.com/datasets/nih-chest-xrays/data) | Training + ID evaluation |
+| CheXpert | [Stanford ML Group](https://stanfordmlgroup.github.io/competitions/chexpert/) | OOD evaluation |
+
+Data is not included in this repo. Download instructions are in `notebooks/00_setup_and_download.ipynb`.
+
+---
 
 ## Setup
+
+**Requirements:** Python 3.10+, Google Colab Pro (T4 GPU recommended)
+
 ```bash
+git clone https://github.com/sossyh/vit-medical-shift.git
+cd vit-medical-shift
 pip install -r requirements.txt
 ```
 
+**To reproduce results:**
+1. Run `notebooks/00_setup_and_download.ipynb` once to download data to Google Drive
+2. Run notebooks 01-04 in order
 
-
-
-# Research Proposal
-
-## Title
-Reliability and Explainability of Vision Transformers Under
-Medical Distribution Shift
-
-## Author
-Sosna Worku
-
----
-
-## 1. Problem Statement
-
-Deep learning models for medical image analysis frequently
-fail when deployed in clinical settings different from where
-they were trained. This phenomenon — known as distribution
-shift — occurs because different hospitals use different
-scanners, imaging protocols, and patient populations. A model
-trained at one institution may achieve high accuracy internally
-but degrade significantly when tested externally.
-
-Vision Transformers (ViTs) have recently emerged as a
-promising alternative to Convolutional Neural Networks (CNNs)
-for medical imaging tasks. However, their reliability and
-explainability under distribution shift remains poorly
-understood. This research addresses that gap.
+Each notebook starts with:
+```python
+!git clone https://github.com/sossyh/vit-medical-shift.git
+import sys
+sys.path.insert(0, '/content/vit-medical-shift')
+```
 
 ---
 
-## 2. Research Questions
+## Results
 
-1. How does ViT performance degrade under hospital-level
-   distribution shift compared to a ResNet baseline?
+### Baseline Performance (NIH ChestX-ray14)
 
-2. Does uncertainty estimation (MC-Dropout) reliably flag
-   cases where the model fails under distribution shift?
+| Disease | ViT AUC | ResNet AUC |
+|---------|---------|------------|
+| Cardiomegaly | 0.869 | 0.728 |
+| Effusion | 0.855 | 0.834 |
+| Emphysema | 0.910 | 0.834 |
+| Pneumothorax | 0.847 | 0.773 |
+| **Mean** | **0.800** | **0.745** |
 
-3. Do ViT attention maps remain clinically meaningful when
-   the model is tested on out-of-distribution data?
+### Distribution Shift (NIH → CheXpert)
 
----
+The most affected condition under shift is Pneumothorax:
+- ViT: 0.847 → 0.620 (drop -0.227)
+- ResNet: 0.773 → 0.665 (drop -0.107)
 
-## 3. Methodology
+### Explainability
 
-### Datasets
-- Training: NIH ChestX-ray14 (94,875 chest X-rays, 14 pathology labels,
-  collected at NIH Clinical Center)
-- OOD Test: CheXpert (224,316 chest X-rays collected at
-  Stanford Hospital) — different scanner, protocol, population
-
-### Models
-- ViT-B/16: Vision Transformer with 16x16 patch size,
-  pretrained on ImageNet-21k, fine-tuned on NIH
-- ResNet50: CNN baseline, pretrained on ImageNet,
-  fine-tuned on NIH
-
-### Experiments
-1. Baseline performance (in-distribution)
-   - Train both models on NIH
-   - Evaluate AUC, ECE on NIH validation set
-
-2. Distribution shift analysis
-   - Evaluate both models on CheXpert (OOD)
-   - Measure AUC drop, calibration degradation
-   - Compare MC-Dropout uncertainty on ID vs OOD
-
-3. Explainability analysis
-   - Extract ViT attention rollout maps
-   - Compute GradCAM for ResNet
-   - Measure IoU with NIH ground truth bounding boxes
-   - Compare attention quality ID vs OOD
+ViT attention maps are diffuse across the full image, while ResNet GradCAM produces spatially focused activations aligned with pathology regions for conditions like Atelectasis and Effusion.
 
 ---
 
-## 4. Preliminary Results
+## Models
 
-Early experiments on a 27,140-image subset show:
-
-| Model    | Mean AUC (ID) | ECE    |
-|----------|---------------|--------|
-| ViT-B/16 | 0.765         | 0.010  |
-| ResNet50 | 0.679         | 0.001  |
-
-ViT outperforms ResNet on 12 of 14 pathologies, with
-particularly strong performance on structural findings
-(Cardiomegaly: +0.257, Fibrosis: +0.292). ResNet shows
-slightly better calibration on in-distribution data.
-
-These early results suggest ViT learns more generalizable
-representations, which may translate to better robustness
-under distribution shift — a hypothesis to be tested in
-the next phase of experiments.
+| Model | Parameters | Pretrained | Fine-tuned |
+|-------|-----------|------------|------------|
+| ViT-B/16 | 85.8M | ImageNet-21k | NIH ChestX-ray14 |
+| ResNet50 | 23.5M | ImageNet | NIH ChestX-ray14 |
 
 ---
 
-## 5. Expected Contributions
+## Citation
 
-1. Empirical comparison of ViT vs ResNet reliability under
-   real-world medical distribution shift
-
-2. Analysis of uncertainty estimation quality under shift —
-   does the model know when it doesn't know?
-
-3. Qualitative and quantitative evaluation of attention map
-   faithfulness under distribution shift
-
-4. Reproducible codebase and trained models released publicly
-   at github.com/sossyh/vit-medical-shift
-
----
-
-## 6. Timeline
-
-| Week | Task                                    |
-|------|-----------------------------------------|
-| 1    | Data preparation and exploration        |
-| 2    | Baseline training (ViT + ResNet)        |
-| 3    | Distribution shift experiments          |
-| 4    | Explainability analysis + thesis writing|
-
----
-
-## 7. Tools and Resources
-
-- Compute: Google Colab Pro (NVIDIA T4 GPU)
-- Framework: PyTorch, timm, HuggingFace
-- Datasets: NIH ChestX-ray14, CheXpert (both public)
-- Code: github.com/sossyh/vit-medical-shift
+```
+@misc{worku2026vit,
+  author    = {Sosna Worku},
+  title     = {Reliability and Explainability of Vision Transformers
+               Under Medical Distribution Shift},
+  year      = {2026},
+  school    = {George Washington University},
+  note      = {https://github.com/sossyh/vit-medical-shift}
+}
+```
