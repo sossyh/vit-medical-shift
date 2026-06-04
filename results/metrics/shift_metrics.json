@@ -1,0 +1,78 @@
+{
+  "vit": {
+    "id_auc": {
+      "Atelectasis": 0.7764229126355372,
+      "Cardiomegaly": 0.8692438795176884,
+      "Effusion": 0.8545930448031626,
+      "Infiltration": 0.7116182712324867,
+      "Mass": 0.7871195012316993,
+      "Nodule": 0.7123649704463618,
+      "Pneumonia": 0.744680039661353,
+      "Pneumothorax": 0.8465536719537322,
+      "Consolidation": 0.8032006549194884,
+      "Edema": 0.8854035465108051,
+      "Emphysema": 0.9099998029336609,
+      "Fibrosis": 0.7987012987012986,
+      "Pleural_Thickening": 0.7334225322948026,
+      "Hernia": 0.7748746371074162,
+      "mean": 0.8005856259963923
+    },
+    "ood_auc": {
+      "Atelectasis": 0.7667191601049869,
+      "Cardiomegaly": 0.7904411764705883,
+      "Effusion": 0.8855298913043479,
+      "Infiltration": NaN,
+      "Mass": NaN,
+      "Nodule": NaN,
+      "Pneumonia": 0.6978092783505154,
+      "Pneumothorax": 0.6197802197802197,
+      "Consolidation": 0.8204044117647058,
+      "Edema": 0.8361607142857143,
+      "Emphysema": NaN,
+      "Fibrosis": NaN,
+      "Pleural_Thickening": NaN,
+      "Hernia": NaN,
+      "mean": 0.7738349788658684
+    },
+    "id_ece": 0.005894115774752213,
+    "ood_ece": 0.040080380927681764
+  },
+  "resnet": {
+    "id_auc": {
+      "Atelectasis": 0.7529554855136249,
+      "Cardiomegaly": 0.7275303568489405,
+      "Effusion": 0.8342259821281504,
+      "Infiltration": 0.6989361149484556,
+      "Mass": 0.7214899677863275,
+      "Nodule": 0.6769304979957877,
+      "Pneumonia": 0.687912004096887,
+      "Pneumothorax": 0.7725914538253662,
+      "Consolidation": 0.8074242914391726,
+      "Edema": 0.8690543581324917,
+      "Emphysema": 0.8339666826509364,
+      "Fibrosis": 0.719598583234947,
+      "Pleural_Thickening": 0.6880505248403179,
+      "Hernia": 0.6458168382158881,
+      "mean": 0.7454630815469495
+    },
+    "ood_auc": {
+      "Atelectasis": 0.7419422572178478,
+      "Cardiomegaly": 0.6369206773618539,
+      "Effusion": 0.8360507246376812,
+      "Infiltration": NaN,
+      "Mass": NaN,
+      "Nodule": NaN,
+      "Pneumonia": 0.6217783505154639,
+      "Pneumothorax": 0.6652014652014652,
+      "Consolidation": 0.7784926470588236,
+      "Edema": 0.8232886904761905,
+      "Emphysema": NaN,
+      "Fibrosis": NaN,
+      "Pleural_Thickening": NaN,
+      "Hernia": NaN,
+      "mean": 0.7290964017813323
+    },
+    "id_ece": 0.002696322745286137,
+    "ood_ece": 0.034906525976291965
+  }
+}
