@@ -1,6 +1,6 @@
 # ViT Reliability and Explainability Under Medical Distribution Shift
 
-**Author:** Sosna Worku | George Washington University  
+**Author:** Sosna Worku Achamyeleh | George Washington University  
 **Thesis Chapter** | 2026
 
 ---
@@ -128,7 +128,7 @@ ViT attention maps are diffuse across the full image, while ResNet GradCAM produ
 
 ```
 @misc{worku2026vit,
-  author    = {Sosna Worku},
+  author    = {Sosna Worku Achamyeleh},
   title     = {Reliability and Explainability of Vision Transformers
                Under Medical Distribution Shift},
   year      = {2026},
