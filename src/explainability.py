@@ -39,12 +39,6 @@ def attention_rollout(attention_maps, head_fusion="mean", discard_ratio=0.9):
     Compute attention rollout from raw attention maps.
     Combines all layers into one final heatmap.
     Answers: where is the ViT looking overall?
-
-    Args:
-        head_fusion:   how to combine attention heads — mean, max, min
-        discard_ratio: ignore lowest X% of attention weights
-    Returns:
-        mask: (H, W) numpy array in [0, 1]
     """
     result = torch.eye(attention_maps[0].size(-1))
 
@@ -71,7 +65,17 @@ def attention_rollout(attention_maps, head_fusion="mean", discard_ratio=0.9):
 
     # CLS token row, drop CLS position
     mask = result[0, 1:]
-    h = w = int(mask.size(0) ** 0.5)
+
+    # Dynamic reshape — handles variable token sizes
+    n = mask.size(0)
+    h = int(n ** 0.5)
+    # Find largest h such that h * w = n
+    while h >= 1:
+        if n % h == 0:
+            break
+        h -= 1
+    w = n // h
+
     mask = mask.reshape(h, w).numpy()
     mask = (mask - mask.min()) / (mask.max() - mask.min() + 1e-8)
     return mask
@@ -90,12 +94,6 @@ def get_gradcam(model, image_tensor, target_class, target_layer, device):
     """
     Compute GradCAM heatmap for ResNet (CNN baseline).
     Answers: where is ResNet looking for a specific disease?
-
-    Args:
-        target_class: disease index (0-13, see NIH_LABELS)
-        target_layer: which layer to hook e.g. model.layer4[-1]
-    Returns:
-        cam: (H, W) numpy array in [0, 1]
     """
     cam_obj = GradCAM(model=model, target_layers=[target_layer])
     targets = [ClassifierOutputTarget(target_class)]
@@ -152,24 +150,27 @@ def plot_attention_comparison(images, masks_id, masks_ood,
     return fig
 
 
-def compute_iou_with_bbox(mask, bbox, threshold=0.5):
+def compute_iou_with_bbox(mask, row, threshold=0.5):
     """
     Compare attention map to ground truth bounding box.
     Answers: is the model looking at the right region?
 
     Args:
         mask:      (H, W) attention map in [0, 1]
-        bbox:      (x, y, w, h) from NIH BBox_List_2017.csv
+        row:       a row from BBox_List_2017.csv
+                   columns: 'Bbox [x', 'y', 'w', 'h]'
         threshold: binarise mask at this value
     Returns:
         iou: float between 0 and 1
-             1.0 = perfect overlap with ground truth
-             0.0 = looking at completely wrong region
     """
-    x, y, bw, bh = [int(v) for v in bbox]
+    x  = int(row['Bbox [x'])
+    y  = int(row['y'])
+    w  = int(row['w'])
+    h  = int(row['h]'])
+
     binary = (mask >= threshold).astype(np.uint8)
     gt     = np.zeros_like(binary)
-    gt[y:y+bh, x:x+bw] = 1
+    gt[y:y+h, x:x+w] = 1
 
     intersection = (binary & gt).sum()
     union        = (binary | gt).sum()
