@@ -46,6 +46,83 @@ class NIHChestDataset(Dataset):
         return image, self.label_matrix[idx], self.image_names[idx]
 
 
+class CheXpertDataset(Dataset):
+    """
+    CheXpert dataset used as OOD evaluation set.
+    Maps CheXpert labels to NIH label space where possible.
+    Uncertain labels (-1) treated as negative (0).
+
+    Expected layout in Google Drive:
+        data/chexpert/
+            valid.csv
+            PNG_valid_files/
+                patient64541/
+                    study1/
+                        view1_frontal.png
+    """
+
+    CHEXPERT_TO_NIH = {
+        'Atelectasis'     : 'Atelectasis',
+        'Cardiomegaly'    : 'Cardiomegaly',
+        'Pleural Effusion': 'Effusion',
+        'Pneumonia'       : 'Pneumonia',
+        'Pneumothorax'    : 'Pneumothorax',
+        'Consolidation'   : 'Consolidation',
+        'Edema'           : 'Edema',
+    }
+
+    def __init__(self, csv_path, img_root, transform=None):
+        self.img_root  = img_root
+        self.transform = transform
+        self.labels    = NIH_LABELS
+
+        df = pd.read_csv(csv_path)
+
+        # Keep frontal views only
+        if 'Frontal/Lateral' in df.columns:
+            df = df[df['Frontal/Lateral'] == 'Frontal'].reset_index(drop=True)
+
+        # Strip path prefix to get patient/study/image
+        # CheXpert-v1.0-small/valid/patient64541/study1/view1_frontal.jpg
+        # → patient64541/study1/view1_frontal.jpg
+        df['local_path'] = df['Path'].apply(
+            lambda p: '/'.join(p.split('/')[-3:])
+        )
+
+        # Change .jpg to .png since our files are PNG
+        df['local_path'] = df['local_path'].str.replace('.jpg', '.png', regex=False)
+
+        # Filter to only existing images
+        df['full_path'] = df['local_path'].apply(
+            lambda p: os.path.join(img_root, p)
+        )
+        df = df[df['full_path'].apply(os.path.exists)].reset_index(drop=True)
+        print(f'CheXpert available: {len(df)} images')
+
+        self.paths        = df['local_path'].values
+        self.label_matrix = self._encode_labels(df)
+
+    def _encode_labels(self, df):
+        matrix = np.zeros((len(df), len(self.labels)), dtype=np.float32)
+        for chex_col, nih_col in self.CHEXPERT_TO_NIH.items():
+            if chex_col in df.columns and nih_col in self.labels:
+                idx  = self.labels.index(nih_col)
+                vals = df[chex_col].fillna(0).values
+                vals = np.where(vals == -1, 0, vals)
+                matrix[:, idx] = vals.astype(np.float32)
+        return matrix
+
+    def __len__(self):
+        return len(self.paths)
+
+    def __getitem__(self, idx):
+        img_path = os.path.join(self.img_root, self.paths[idx])
+        image    = Image.open(img_path).convert('RGB')
+        if self.transform:
+            image = self.transform(image)
+        return image, self.label_matrix[idx], self.paths[idx]
+
+
 def get_transforms(split="train", image_size=224):
     mean = [0.485, 0.456, 0.406]
     std  = [0.229, 0.224, 0.225]
@@ -68,9 +145,7 @@ def get_transforms(split="train", image_size=224):
 
 def get_nih_loaders(csv_path, img_dir, batch_size=32,
                     train_split=0.8, image_size=224,
-                    num_workers=0,   # ← change from 2 to 0
-                    subset=1.0):
-    # Use subset for local CPU testing (e.g. subset=0.01 = 1% of data)
+                    num_workers=0, subset=1.0):
     full_dataset = NIHChestDataset(csv_path, img_dir, subset=subset)
     n = len(full_dataset)
     n_train = int(n * train_split)
